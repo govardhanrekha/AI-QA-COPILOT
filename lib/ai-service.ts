@@ -17,7 +17,7 @@ export type AiAction =
   | "generateClosureSummary";
 
 export async function runAiAction(action: AiAction, payload: Record<string, unknown>) {
-  const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/api/ai`, {
+  const response = await fetch("/api/ai", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action, payload }),
