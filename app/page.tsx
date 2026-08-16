@@ -40,7 +40,8 @@ type TabKey =
   | "test-cases"
   | "coverage"
   | "bug-triage"
-  | "closure";
+  | "closure"
+  | "settings";
 
 const tabs = [
   { id: "dashboard", label: "Dashboard", icon: Home },
@@ -50,6 +51,7 @@ const tabs = [
   { id: "coverage", label: "Test Coverage", icon: BarChart3 },
   { id: "bug-triage", label: "Bug Triage", icon: Bug },
   { id: "closure", label: "Test Closure", icon: ShieldCheck },
+  { id: "settings", label: "Settings", icon: Grid2x2 },
 ] as const;
 
 const defaultSummary = {
@@ -132,6 +134,10 @@ export default function HomePage() {
     mediumDefects: 7,
     lowDefects: 8,
   });
+  const [showDocModal, setShowDocModal] = useState(false);
+  const [showIssueModal, setShowIssueModal] = useState(false);
+  const [issueSubmitted, setIssueSubmitted] = useState(false);
+  const [issueForm, setIssueForm] = useState({ title: "", description: "", priority: "Medium" });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const summaryCards = useMemo(
@@ -183,14 +189,19 @@ export default function HomePage() {
     }
   };
 
-  const handleGenerateTestCases = async () => {
-    handleLoading("Generating test cases...");
+  const handleGenerateTestCases = async (category: "standard" | "more" | "negative" | "boundary" = "standard") => {
+    handleLoading(`Generating ${category === "standard" ? "" : category + " "}test cases...`);
     try {
       const result = await runAiAction("generateTestCases", {
         requirements: analysis?.extractedRequirements ?? [],
         module: analysis?.module ?? "Payments",
+        category,
       });
-      setTestCases(result.cases ?? []);
+      if (category === "more") {
+        setTestCases((prev) => [...prev, ...(result.cases ?? [])]);
+      } else {
+        setTestCases(result.cases ?? []);
+      }
       setStatusMessage("AI Status: ● Ready");
       setActiveTab("test-cases");
     } catch (err) {
@@ -292,7 +303,7 @@ export default function HomePage() {
     try {
       if (file.type.includes("pdf") || file.name.toLowerCase().endsWith(".pdf")) {
         const { GlobalWorkerOptions, getDocument } = await import("pdfjs-dist");
-        GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/6.2.108/pdf.worker.min.js`;
+        GlobalWorkerOptions.workerSrc = `/pdf.worker.min.mjs`;
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await getDocument({ data: arrayBuffer }).promise;
         const pages: string[] = [];
@@ -485,7 +496,7 @@ export default function HomePage() {
             </div>
             <div className="mt-5 flex flex-wrap gap-3">
               <button onClick={handleGenerateTestPlan} className="rounded-xl bg-[#1B1B1B] px-4 py-2.5 text-sm font-medium text-white">Generate Test Plan</button>
-              <button onClick={handleGenerateTestCases} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium">Generate Test Cases</button>
+              <button onClick={() => handleGenerateTestCases("standard")} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium">Generate Test Cases</button>
               <button onClick={handleAnalyzeCoverage} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium">Analyze Coverage</button>
             </div>
           </div>
@@ -575,15 +586,15 @@ export default function HomePage() {
         </div>
         <div className="rounded-2xl border border-slate-200 bg-white/80 p-4">
           <label className="text-xs uppercase tracking-[0.18em] text-slate-500">Number of Test Cases</label>
-          <input value={3} readOnly className="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" />
+          <input value={testCases.length} readOnly className="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" />
         </div>
       </div>
 
       <div className="mt-6 flex flex-wrap gap-3">
-        <button onClick={handleGenerateTestCases} className="rounded-xl bg-[#1B1B1B] px-4 py-2.5 text-sm font-medium text-white">Generate Test Cases</button>
-        <button className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium">Generate More</button>
-        <button className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium">Generate Negative Cases</button>
-        <button className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium">Generate Boundary Cases</button>
+        <button onClick={() => handleGenerateTestCases("standard")} className="rounded-xl bg-[#1B1B1B] px-4 py-2.5 text-sm font-medium text-white hover:bg-black transition-colors">Generate Test Cases</button>
+        <button onClick={() => handleGenerateTestCases("more")} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium hover:bg-slate-50 transition-colors">Generate More</button>
+        <button onClick={() => handleGenerateTestCases("negative")} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium hover:bg-slate-50 transition-colors">Generate Negative Cases</button>
+        <button onClick={() => handleGenerateTestCases("boundary")} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium hover:bg-slate-50 transition-colors">Generate Boundary Cases</button>
       </div>
 
       <div className="mt-6 overflow-x-auto soft-scroll">
@@ -693,7 +704,7 @@ export default function HomePage() {
           {(coverage.missingCoverage ?? []).map((item: any) => (
             <div key={item.requirementId} className="flex items-center justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
               <div className="flex items-center gap-2"><span className="font-bold">🔴 {item.requirementId}</span> <span>{item.description}</span></div>
-              <button className="rounded-lg bg-red-600 px-3 py-2 text-xs font-medium text-white">Generate Missing Tests</button>
+              <button onClick={() => handleGenerateTestCases("more")} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-medium text-white hover:bg-red-700 transition-colors cursor-pointer">Generate Missing Tests</button>
             </div>
           ))}
         </div>
@@ -823,6 +834,56 @@ export default function HomePage() {
     </div>
   );
 
+  const renderSettings = () => (
+    <div className="card-surface rounded-3xl p-6">
+      <div>
+        <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">Settings</p>
+        <h2 className="mt-2 text-2xl font-semibold">Application Configuration</h2>
+      </div>
+
+      <div className="mt-8 grid gap-6">
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold">API Configuration</h3>
+          <div className="rounded-2xl border border-slate-200 bg-white/80 p-4">
+            <label className="text-xs uppercase tracking-[0.18em] text-slate-500">OpenAI API Endpoint</label>
+            <input value="https://api.openai.com/v1/chat/completions" readOnly className="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" />
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white/80 p-4">
+            <label className="text-xs uppercase tracking-[0.18em] text-slate-500">Model</label>
+            <input value="gpt-4" readOnly className="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" />
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold">Application Settings</h3>
+          <div className="rounded-2xl border border-slate-200 bg-white/80 p-4">
+            <label className="text-xs uppercase tracking-[0.18em] text-slate-500">Application Name</label>
+            <input value="AI QA Copilot" readOnly className="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" />
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white/80 p-4">
+            <label className="text-xs uppercase tracking-[0.18em] text-slate-500">Version</label>
+            <input value="1.0.0" readOnly className="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" />
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white/80 p-4">
+            <label className="text-xs uppercase tracking-[0.18em] text-slate-500">Environment</label>
+            <input value="Production" readOnly className="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" />
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold">About</h3>
+          <div className="rounded-2xl border border-slate-200 bg-white/80 p-4">
+            <p className="text-sm text-slate-700">AI QA Copilot is an AI-powered quality engineering assistant that helps automate testing, analysis, and QA processes.</p>
+            <div className="mt-4 flex gap-4">
+              <button onClick={() => setShowDocModal(true)} className="rounded-lg bg-[#1B1B1B] px-4 py-2 text-sm font-medium text-white hover:bg-black transition-colors">View Documentation</button>
+              <button onClick={() => setShowIssueModal(true)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium hover:bg-slate-50 transition-colors">Report Issue</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-[#FAF7F0] text-[#141414]">
       <div className="mx-auto flex max-w-[1600px] flex-col lg:flex-row">
@@ -849,7 +910,10 @@ export default function HomePage() {
             </nav>
 
             <div className="mt-8 border-t border-slate-200 pt-4">
-              <button className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium text-slate-700 hover:bg-white/60">
+              <button
+                onClick={() => setActiveTab("settings")}
+                className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium ${activeTab === "settings" ? "bg-[#1B1B1B] text-white" : "text-slate-700 hover:bg-white/60"}`}
+              >
                 <Grid2x2 className="h-4 w-4" /> Settings
               </button>
             </div>
@@ -883,9 +947,121 @@ export default function HomePage() {
             {activeTab === "coverage" && renderCoverage()}
             {activeTab === "bug-triage" && renderBug()}
             {activeTab === "closure" && renderClosure()}
+            {activeTab === "settings" && renderSettings()}
           </div>
         </main>
       </div>
+
+      {showDocModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="card-surface max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+              <h3 className="text-xl font-semibold">AI QA Copilot Documentation</h3>
+              <button onClick={() => setShowDocModal(false)} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100">
+                <XCircle className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="mt-4 space-y-4 text-sm text-slate-700">
+              <h4 className="font-semibold text-slate-900">Features Overview</h4>
+              <ul className="list-disc space-y-2 pl-5">
+                <li><strong>Requirement Analyzer:</strong> Parses raw requirements or uploaded PDFs/TXT files to extract structured functional & non-functional requirements and risk ratings.</li>
+                <li><strong>Test Plan Generator:</strong> Creates an enterprise-grade QA Test Plan complete with strategy, scope, entry/exit criteria, and deliverables.</li>
+                <li><strong>Test Case Generator:</strong> Automatically drafts detailed positive, negative, and boundary test scenarios with step-by-step actions.</li>
+                <li><strong>Test Coverage & Traceability:</strong> Maps test scenarios directly to requirement IDs and highlights uncovered features.</li>
+                <li><strong>Bug Triage:</strong> Analyzes defect reports to determine severity, priority, business impact, and potential root cause hypotheses.</li>
+                <li><strong>Test Closure:</strong> Evaluates execution status and defect metrics to provide release readiness recommendations.</li>
+              </ul>
+              <h4 className="mt-4 font-semibold text-slate-900">API Integration</h4>
+              <p>Configure `AI_API_KEY` in environment variables to enable OpenAI GPT-4 powered response generation, or rely on built-in offline QA heuristics.</p>
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button onClick={() => setShowDocModal(false)} className="rounded-xl bg-[#1B1B1B] px-5 py-2.5 text-sm font-medium text-white hover:bg-black">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showIssueModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="card-surface w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+              <h3 className="text-xl font-semibold">Report an Issue</h3>
+              <button onClick={() => { setShowIssueModal(false); setIssueSubmitted(false); }} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100">
+                <XCircle className="h-6 w-6" />
+              </button>
+            </div>
+
+            {issueSubmitted ? (
+              <div className="my-6 text-center">
+                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                  <CheckCircle2 className="h-7 w-7" />
+                </div>
+                <h4 className="text-lg font-semibold text-slate-800">Issue Submitted</h4>
+                <p className="mt-1 text-sm text-slate-600">Thank you! Your feedback has been logged successfully.</p>
+                <button
+                  onClick={() => { setShowIssueModal(false); setIssueSubmitted(false); setIssueForm({ title: "", description: "", priority: "Medium" }); }}
+                  className="mt-5 rounded-xl bg-[#1B1B1B] px-5 py-2.5 text-sm font-medium text-white hover:bg-black"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!issueForm.title.trim()) return;
+                  setIssueSubmitted(true);
+                }}
+                className="mt-4 space-y-4 text-sm"
+              >
+                <div>
+                  <label className="font-medium text-slate-700">Issue Summary</label>
+                  <input
+                    required
+                    value={issueForm.title}
+                    onChange={(e) => setIssueForm({ ...issueForm, title: e.target.value })}
+                    placeholder="Brief description of the issue..."
+                    className="mt-1.5 w-full rounded-xl border border-slate-200 p-3 text-sm outline-none ring-0 focus:border-slate-400"
+                  />
+                </div>
+                <div>
+                  <label className="font-medium text-slate-700">Priority</label>
+                  <select
+                    value={issueForm.priority}
+                    onChange={(e) => setIssueForm({ ...issueForm, priority: e.target.value })}
+                    className="mt-1.5 w-full rounded-xl border border-slate-200 p-3 text-sm outline-none ring-0 focus:border-slate-400"
+                  >
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                    <option value="Critical">Critical</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-medium text-slate-700">Details / Steps to Reproduce</label>
+                  <textarea
+                    rows={4}
+                    value={issueForm.description}
+                    onChange={(e) => setIssueForm({ ...issueForm, description: e.target.value })}
+                    placeholder="Provide additional details or logs..."
+                    className="mt-1.5 w-full rounded-xl border border-slate-200 p-3 text-sm outline-none ring-0 focus:border-slate-400"
+                  />
+                </div>
+                <div className="mt-6 flex justify-end gap-3">
+                  <button type="button" onClick={() => setShowIssueModal(false)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium hover:bg-slate-50">
+                    Cancel
+                  </button>
+                  <button type="submit" className="rounded-xl bg-[#1B1B1B] px-5 py-2.5 text-sm font-medium text-white hover:bg-black">
+                    Submit Issue
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

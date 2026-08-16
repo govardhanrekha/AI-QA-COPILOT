@@ -149,10 +149,128 @@ export function generateLocalStructuredResponse(action: AiAction, payload: Recor
   }
 
   if (action === "generateTestCases") {
+    const category = (payload.category as string) || "standard";
     const requirementList = Array.isArray(payload.requirements) ? payload.requirements : [
       { id: "REQ-001", text: "Users can transfer funds using a registered bank account." },
       { id: "REQ-002", text: "Daily transfer limit must be enforced." },
     ];
+
+    if (category === "negative") {
+      return {
+        cases: [
+          {
+            id: "TC-NEG-001",
+            requirementId: requirementList[0]?.id || "REQ-001",
+            scenario: "Verify transfer attempt with unverified bank account.",
+            precondition: "User has an unverified bank account linked.",
+            steps: ["Initiate transfer", "Select unverified bank account", "Submit transfer"],
+            testData: "Unverified Account #998811",
+            expectedResult: "System blocks transaction with 'Unverified Account' error message.",
+            priority: "High",
+            severity: "High",
+            type: "Negative",
+          },
+          {
+            id: "TC-NEG-002",
+            requirementId: requirementList[1]?.id || "REQ-002",
+            scenario: "Verify transfer with zero or negative amount.",
+            precondition: "User is logged in and selects transfer.",
+            steps: ["Enter transfer amount = ₹0 or ₹-500", "Click transfer button"],
+            testData: "Amount: ₹0",
+            expectedResult: "Transfer button is disabled or validation error is displayed.",
+            priority: "High",
+            severity: "High",
+            type: "Negative",
+          },
+          {
+            id: "TC-NEG-003",
+            requirementId: requirementList[0]?.id || "REQ-001",
+            scenario: "Verify transfer attempt when notification service is unreachable.",
+            precondition: "Notification gateway service is simulated offline.",
+            steps: ["Execute valid fund transfer", "Observe system error handling"],
+            testData: "Valid account, Amount: ₹10,000",
+            expectedResult: "Transfer proceeds successfully; notification task queued for retry.",
+            priority: "Medium",
+            severity: "Medium",
+            type: "Negative",
+          },
+        ],
+      };
+    }
+
+    if (category === "boundary") {
+      return {
+        cases: [
+          {
+            id: "TC-BND-001",
+            requirementId: requirementList[1]?.id || "REQ-002",
+            scenario: "Verify transfer at exact daily limit (Boundary: ₹2,00,000).",
+            precondition: "Daily transfers total so far is ₹0.",
+            steps: ["Enter transfer amount ₹2,00,000", "Submit transfer request"],
+            testData: "Amount: ₹2,00,000",
+            expectedResult: "Transaction is processed successfully without errors.",
+            priority: "High",
+            severity: "Critical",
+            type: "Boundary",
+          },
+          {
+            id: "TC-BND-002",
+            requirementId: requirementList[1]?.id || "REQ-002",
+            scenario: "Verify transfer at ₹1 below limit (Boundary: ₹1,99,999).",
+            precondition: "Daily transfers total so far is ₹0.",
+            steps: ["Enter transfer amount ₹1,99,999", "Submit transfer request"],
+            testData: "Amount: ₹1,99,999",
+            expectedResult: "Transaction is processed successfully.",
+            priority: "High",
+            severity: "High",
+            type: "Boundary",
+          },
+          {
+            id: "TC-BND-003",
+            requirementId: requirementList[1]?.id || "REQ-002",
+            scenario: "Verify transfer at ₹1 above limit (Boundary: ₹2,00,001).",
+            precondition: "Daily transfers total so far is ₹0.",
+            steps: ["Enter transfer amount ₹2,00,001", "Submit transfer request"],
+            testData: "Amount: ₹2,00,001",
+            expectedResult: "Transaction is rejected due to exceeding maximum daily limit.",
+            priority: "High",
+            severity: "Critical",
+            type: "Boundary",
+          },
+        ],
+      };
+    }
+
+    if (category === "more") {
+      return {
+        cases: [
+          {
+            id: "TC-004",
+            requirementId: requirementList[0]?.id || "REQ-001",
+            scenario: "Verify concurrent transfers from same account in quick succession.",
+            precondition: "User has two active sessions open.",
+            steps: ["Initiate transfer of ₹1,50,000 in Session 1", "Initiate transfer of ₹1,00,000 in Session 2 simultaneously"],
+            testData: "Concurrent transaction payloads",
+            expectedResult: "First transaction succeeds; second is rejected for exceeding limit.",
+            priority: "High",
+            severity: "High",
+            type: "Concurrency",
+          },
+          {
+            id: "TC-005",
+            requirementId: requirementList[0]?.id || "REQ-001",
+            scenario: "Verify SMS and Email notification delivery SLA within 5 seconds.",
+            precondition: "Customer has valid mobile number and email registered.",
+            steps: ["Complete valid transfer of ₹10,000", "Check notification delivery logs"],
+            testData: "Valid payment payload",
+            expectedResult: "Notification delivered with accurate reference ID within SLA.",
+            priority: "Medium",
+            severity: "Low",
+            type: "Integration",
+          },
+        ],
+      };
+    }
 
     const cases = [
       {
