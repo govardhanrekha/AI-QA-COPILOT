@@ -291,11 +291,10 @@ export default function HomePage() {
 
     try {
       if (file.type.includes("pdf") || file.name.toLowerCase().endsWith(".pdf")) {
-        const pdfjs = await import("pdfjs-dist");
-        const pdfjsWorker = await import("pdfjs-dist/build/pdf.worker.mjs");
-        pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker.default || pdfjsWorker;
+        const { GlobalWorkerOptions, getDocument } = await import("pdfjs-dist");
+        GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/6.2.108/pdf.worker.min.js`;
         const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
+        const pdf = await getDocument({ data: arrayBuffer }).promise;
         const pages: string[] = [];
         for (let i = 1; i <= pdf.numPages; i += 1) {
           const page = await pdf.getPage(i);
